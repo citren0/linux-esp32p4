@@ -1,0 +1,96 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/dts-v1/;
+
+/ {
+    model = "Espressif ESP32-P4 NOMMU";
+    compatible = "espressif,esp32p4";
+
+    #address-cells = <1>;
+    #size-cells = <1>;
+
+    chosen {
+        /* * Tell the kernel to use our custom driver, point it at the physical 
+         * address you just found, and define the standard 115200 baud rate.
+         */
+        bootargs = "earlycon=esp32p4_uart,mmio32,0x500CA000 console=ttyS0,115200n8";
+    };
+
+    /*
+     * THE CPUS:
+     * We define the two High-Performance (HP) cores here. 
+     * (We ignore the 40MHz LP core for Linux).
+     */
+    cpus {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        timebase-frequency = <400000000>; // 400 MHz HP core clock
+
+        cpu0: cpu@0 {
+            device_type = "cpu";
+            compatible = "riscv";
+            riscv,isa = "rv32imafc"; // Assuming standard extensions for HP core
+            mmu-type = "riscv,none"; // CRITICAL: Tells the kernel we have no MMU
+            reg = <0>;
+            status = "okay";
+
+            cpu0_intc: interrupt-controller {
+                #interrupt-cells = <1>;
+                compatible = "riscv,cpu-intc";
+                interrupt-controller;
+            };
+        };
+        
+        // Disable Core 1 initially to get SMP out of the equation during early boot
+        cpu1: cpu@1 {
+            device_type = "cpu";
+            compatible = "riscv";
+            reg = <1>;
+            status = "disabled"; 
+        };
+    };
+
+
+    /*
+     * Configure the address space for the trace memory via TRACE_MEM_START_ADDR_REG and
+     * TRACE_MEM_END_ADDR_REG. The encoder can access L2 MEM and PSRAM:
+     * – PSRAM: 0x48000000 ~ 0x4BFFFFFF
+     * 
+     * THE MEMORY:
+     * This is the physical address where your ESP-IDF boot shim will map the PSRAM.
+     */
+    memory@48000000 {
+        device_type = "memory";
+        // Example: 32MB of PSRAM starting at some hardware-defined base address
+        // Physical memory map is 0x3ffffff bytes large, but our board only has 32MB.
+        reg = <0x48000000 0x02000000>;
+    };
+
+    /*
+     * THE SOC PERIPHERALS:
+     */
+    soc {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        compatible = "simple-bus";
+        ranges;
+        
+        // Page 484 of the TRM for the base address.
+        plic: interrupt-controller@500d6000 {
+            compatible = "sifive,plic-1.0.0";
+            #interrupt-cells = <1>;
+            interrupt-controller;
+            interrupts-extended = <&cpu0_intc 11>, <&cpu0_intc 9>;
+            reg = <0x500d6000 0x400000>; // Base address and block size
+            riscv,ndev = <128>; // Number of external interrupts (check TRM)
+        };
+
+        uart0: serial@500ca000 {
+            compatible = "espressif,esp32p4-uart"; 
+            reg = <0x500CA000 0x400>; 
+            /* interrupts = <??>; We will need the TRM Interrupt Matrix value later */
+            interrupt-parent = <&plic>;
+            clock-frequency = <40000000>; // Assuming 40MHz APB clock
+            status = "okay";
+        };
+    };
+};
