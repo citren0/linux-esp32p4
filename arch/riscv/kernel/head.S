@@ -25,6 +25,7 @@ SYM_CODE_START(_start)
 	 * Do not modify it without modifying the structure and all bootloaders
 	 * that expects this header format!!
 	 */
+
 #ifdef CONFIG_EFI
 	/*
 	 * This instruction decodes to "MZ" ASCII required by UEFI.
@@ -217,15 +218,12 @@ SYM_CODE_START(_start_kernel)
 	fence.i
 
 	/* Reset all registers except ra, a0, a1 */
-	call reset_regs
+	# call reset_regs
 
-	/*
-	 * Setup a PMP to permit access to all of memory.  Some machines may
-	 * not implement PMPs, so we set up a quick trap handler to just skip
-	 * touching the PMPs on any trap.
-	 */
-	la a0, .Lpmp_done
-	csrw CSR_TVEC, a0
+	/* PATCH: Skip PMP configuration because the ESP-IDF 
+     * bootloader has already locked these registers.
+     */
+	j .Lpmp_done
 
 	li a0, -1
 	csrw CSR_PMPADDR0, a0
@@ -233,7 +231,6 @@ SYM_CODE_START(_start_kernel)
 	csrw CSR_PMPCFG0, a0
 .align 2
 .Lpmp_done:
-
 	/*
 	 * The hartid in a0 is expected later on, and we have no firmware
 	 * to hand it to us.

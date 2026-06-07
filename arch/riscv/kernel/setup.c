@@ -311,6 +311,8 @@ extern void __init init_rt_signal_env(void);
 
 void __init setup_arch(char **cmdline_p)
 {
+	volatile unsigned int *uart_fifo = (unsigned int *)0x500CA000;
+
 	parse_dtb();
 	setup_initial_init_mm(_stext, _etext, _edata, _end);
 
@@ -346,6 +348,9 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_SMP
 	setup_smp();
 #endif
+
+	*uart_fifo = '1';
+	*uart_fifo = ' ';
 
 	if (!acpi_disabled) {
 		acpi_init_rintc_map();

@@ -121,6 +121,8 @@
 
 static int kernel_init(void *);
 
+#define DEBUG_PUTC(c) (*((volatile unsigned int *)0x500CA000) = (c))
+
 /*
  * Debug helper: via this flag we know that we are in 'early bootup code'
  * where only the boot processor is running with IRQ disabled.  This means
@@ -790,12 +792,25 @@ void __init parse_early_param(void)
 	static int done __initdata;
 	static char tmp_cmdline[COMMAND_LINE_SIZE] __initdata;
 
+	// Checkpoint: Prove the DTB pointer is valid and readable
+    if (boot_command_line) {
+        int i = 0;
+        // Dump the first 40 characters of the command line
+        while (boot_command_line[i] != '\0' && i < 40) {
+            DEBUG_PUTC(boot_command_line[i]);
+            i++;
+        }
+		DEBUG_PUTC('\n');
+    }
+
 	if (done)
 		return;
 
 	/* All fall through to do_early_param. */
 	strscpy(tmp_cmdline, boot_command_line, COMMAND_LINE_SIZE);
+
 	parse_early_options(tmp_cmdline);
+
 	done = 1;
 }
 
